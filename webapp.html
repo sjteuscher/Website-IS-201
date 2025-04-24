@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Checkers Game</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #eee;
+      padding-top: 20px;
+    }
+
+    #game-area {
+      display: flex;
+      align-items: center;
+    }
+
+    #captured-red, #captured-black {
+      width: 80px;
+      min-height: 480px;
+      background: #ccc;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      border: 2px solid #999;
+      font-weight: bold;
+    }
+
+    #captured-red {
+      margin-left: 20px;
+    }
+
+    #captured-black {
+      margin-right: 20px;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(8, 60px);
+      grid-template-rows: repeat(8, 60px);
+      border: 3px solid #333;
+    }
+
+    .cell {
+      width: 60px;
+      height: 60px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .black {
+      background-color: #769656;
+    }
+
+    .white {
+      background-color: #eeeed2;
+    }
+
+    .piece {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-weight: bold;
+    }
+
+    .red {
+      background-color: red;
+    }
+
+    .black-piece {
+      background-color: black;
+    }
+
+    .highlight {
+      outline: 3px solid yellow;
+    }
+
+    #status {
+      font-size: 1.2em;
+      margin-top: 10px;
+    }
+
+    #game-over {
+      font-size: 1.4em;
+      color: darkred;
+      margin-top: 15px;
+    }
+
+    #replay {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 1em;
+      display: none;
+    }
+
+    .captured-piece {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+    }
+
+    .captured-red-piece {
+      background-color: red;
+    }
+
+    .captured-black-piece {
+      background-color: black;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Player Turn (Red)</div>
+
+  <div id="game-area">
+    <div id="captured-black">
+      <div>Red Captured</div>
+    </div>
+
+    <div id="board"></div>
+
+    <div id="captured-red">
+      <div>Black Captured</div>
+    </div>
+  </div>
+
+  <div id="game-over"></div>
+  <button id="replay" onclick="resetGame()">Play Again</button>
+
+  <script>
+    const board = document.getElementById('board');
+    const statusDiv = document.getElementById('status');
+    const gameOverDiv = document.getElementById('game-over');
+    const replayBtn = document.getElementById('replay');
+    const capturedRed = document.getElementById('captured-red');
+    const capturedBlack = document.getElementById('captured-black');
+    const size = 8;
+    let selectedPiece = null;
+    let playerTurn = 'red';
+
+    function createBoard() {
+      board.innerHTML = '';
+      capturedRed.innerHTML = '<div>Black Captured</div>';
+      capturedBlack.innerHTML = '<div>Red Captured</div>';
+
+      for (let row = 0; row < size; row++) {
+        for (let col = 0; col < size; col++) {
+          const cell = document.createElement('div');
+          cell.classList.add('cell');
+          cell.classList.add((row + col) % 2 === 0 ? 'white' : 'black');
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+
+          if ((row + col) % 2 !== 0) {
+            if (row < 3) {
+              const piece = createPiece('black');
+              cell.appendChild(piece);
+            } else if (row > 4) {
+              const piece = createPiece('red');
+              cell.appendChild(piece);
+            }
+          }
+
+          cell.addEventListener('click', () => handleCellClick(cell));
+          board.appendChild(cell);
+        }
+      }
+    }
+
+    function createPiece(color, isKing = false) {
+      const piece = document.createElement('div');
+      piece.classList.add('piece', color === 'red' ? 'red' : 'black-piece');
+      piece.dataset.color = color;
+      if (isKing) {
+        piece.dataset.king = 'true';
+        piece.textContent = 'K';
+      }
+      return piece;
+    }
+
+    function handleCellClick(cell) {
+      if (playerTurn !== 'red') return;
+
+      const piece = cell.querySelector('.piece');
+
+      if (selectedPiece) {
+        const fromCell = selectedPiece.parentElement;
+        const toCell = cell;
+
+        if (!toCell.querySelector('.piece') && isValidMove(fromCell, toCell, selectedPiece)) {
+          makeMove(fromCell, toCell, selectedPiece);
+          selectedPiece.classList.remove('highlight');
+          selectedPiece = null;
+          playerTurn = 'black';
+          statusDiv.textContent = "Computer Turn (Black)";
+          setTimeout(() => {
+            if (!checkGameOver()) {
+              computerTurn();
+              checkGameOver();
+            }
+          }, 500);
+        } else {
+          selectedPiece.classList.remove('highlight');
+          selectedPiece = null;
+        }
+      } else if (piece && piece.dataset.color === 'red') {
+        selectedPiece = piece;
+        piece.classList.add('highlight');
+      }
+    }
+
+    function makeMove(fromCell, toCell, piece) {
+      const fromRow = parseInt(fromCell.dataset.row);
+      const fromCol = parseInt(fromCell.dataset.col);
+      const toRow = parseInt(toCell.dataset.row);
+      const toCol = parseInt(toCell.dataset.col);
+
+      if (Math.abs(toRow - fromRow) === 2 && Math.abs(toCol - fromCol) === 2) {
+        const jumpedRow = (fromRow + toRow) / 2;
+        const jumpedCol = (fromCol + toCol) / 2;
+        const jumpedCell = getCell(jumpedRow, jumpedCol);
+        const jumpedPiece = jumpedCell.querySelector('.piece');
+        if (jumpedPiece) {
+          const capturedColor = jumpedPiece.dataset.color;
+          addToCaptured(capturedColor);
+          jumpedPiece.remove();
+        }
+      }
+
+      toCell.appendChild(piece);
+
+      // King me!
+      if (!piece.dataset.king) {
+        if ((piece.dataset.color === 'red' && toRow === 0) ||
+            (piece.dataset.color === 'black' && toRow === 7)) {
+          piece.dataset.king = 'true';
+          piece.textContent = 'K';
+        }
+      }
+    }
+
+    function addToCaptured(color) {
+      const cap = document.createElement('div');
+      cap.classList.add('captured-piece');
+      if (color === 'red') {
+        cap.classList.add('captured-red-piece');
+        capturedBlack.appendChild(cap);
+      } else {
+        cap.classList.add('captured-black-piece');
+        capturedRed.appendChild(cap);
+      }
+    }
+
+    function isValidMove(fromCell, toCell, piece) {
+      const fromRow = parseInt(fromCell.dataset.row);
+      const fromCol = parseInt(fromCell.dataset.col);
+      const toRow = parseInt(toCell.dataset.row);
+      const toCol = parseInt(toCell.dataset.col);
+      const color = piece.dataset.color;
+      const isKing = piece.dataset.king === 'true';
+
+      const direction = color === 'red' ? -1 : 1;
+      const rowDiff = toRow - fromRow;
+      const colDiff = Math.abs(toCol - fromCol);
+
+      if (colDiff === 1 && (rowDiff === direction || (isKing && rowDiff === -direction))) {
+        return true;
+      }
+
+      if (colDiff === 2) {
+        const midRow = (fromRow + toRow) / 2;
+        const midCol = (fromCol + toCol) / 2;
+        const midCell = getCell(midRow, midCol);
+        const midPiece = midCell.querySelector('.piece');
+        const validJumpDirection = rowDiff === 2 * direction || (isKing && rowDiff === -2 * direction);
+
+        return midPiece &&
+               midPiece.dataset.color !== color &&
+               validJumpDirection;
+      }
+
+      return false;
+    }
+
+    function getCell(row, col) {
+      return board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+    }
+
+    function computerTurn() {
+      const blackPieces = [...board.querySelectorAll('.piece.black-piece')];
+      let moves = [];
+
+      blackPieces.forEach(piece => {
+        const fromCell = piece.parentElement;
+        const fromRow = parseInt(fromCell.dataset.row);
+        const fromCol = parseInt(fromCell.dataset.col);
+        const isKing = piece.dataset.king === 'true';
+
+        const directions = isKing
+          ? [[1, -1], [1, 1], [-1, -1], [-1, 1], [2, -2], [2, 2], [-2, -2], [-2, 2]]
+          : [[1, -1], [1, 1], [2, -2], [2, 2]];
+
+        directions.forEach(([dr, dc]) => {
+          const toRow = fromRow + dr;
+          const toCol = fromCol + dc;
+          const toCell = getCell(toRow, toCol);
+          if (toCell && !toCell.querySelector('.piece') &&
+              isValidMove(fromCell, toCell, piece)) {
+            moves.push({ fromCell, toCell, piece });
+          }
+        });
+      });
+
+      if (moves.length > 0) {
+        const move = moves[Math.floor(Math.random() * moves.length)];
+        makeMove(move.fromCell, move.toCell, move.piece);
+      }
+
+      playerTurn = 'red';
+      statusDiv.textContent = "Player Turn (Red)";
+    }
+
+    function checkGameOver() {
+      const redPieces = board.querySelectorAll('.piece.red');
+      const blackPieces = board.querySelectorAll('.piece.black-piece');
+
+      if (redPieces.length === 0) {
+        gameOverDiv.textContent = "Computer wins!";
+        replayBtn.style.display = 'inline-block';
+        playerTurn = null;
+        return true;
+      } else if (blackPieces.length === 0) {
+        gameOverDiv.textContent = "You win!";
+        replayBtn.style.display = 'inline-block';
+        playerTurn = null;
+        return true;
+      }
+      return false;
+    }
+
+    function resetGame() {
+      gameOverDiv.textContent = "";
+      replayBtn.style.display = 'none';
+      playerTurn = 'red';
+      selectedPiece = null;
+      statusDiv.textContent = "Player Turn (Red)";
+      createBoard();
+    }
+
+    createBoard();
+  </script>
+</body>
+</html>
